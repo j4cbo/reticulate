@@ -1,10 +1,7 @@
 #ifndef RENDER_H
 #define RENDER_H
 
-struct xy {
-	float x;
-	float y;
-};
+#include "nurbs.h"
 
 struct xy render_point(float u);
 

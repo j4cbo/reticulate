@@ -1,4 +1,4 @@
-SRCS = main.c render.c
+SRCS = main.c nurbs.c render.c
 
 SDL_FLAGS = -framework SDL -framework Cocoa -framework OpenGL -I/Library/Frameworks/SDL.framework/Headers
 
