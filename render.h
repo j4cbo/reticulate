@@ -3,6 +3,6 @@
 
 #include "nurbs.h"
 
-struct xy render_point(float u);
+struct xy render_point(float u, float per_circle);
 
 #endif

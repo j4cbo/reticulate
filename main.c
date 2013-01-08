@@ -7,7 +7,7 @@
 #define FPS 30
 #define PIXELS_PER_UNIT	120
 
-#define WINDOW_SIZE 600
+#define WINDOW_SIZE 800
 
 SDL_Surface * screen;
 
@@ -46,9 +46,9 @@ void renderPoints() {
 
 	/* Draw some output */
 	glBegin(GL_LINE_STRIP);
-	for (i = 0; i < 1000; i++) {
-		float u = i / 1000.0;
-		struct xy xy = render_point(u);
+	for (i = 0; i < 360000; i++) {
+		float u = i / 360000.0;
+		struct xy xy = render_point(u, 25);
 		glColor3f(u, 0, 1.0 - u);
 		glVertex2i(xy.x * PIXELS_PER_UNIT, xy.y * PIXELS_PER_UNIT);
 	}
@@ -73,14 +73,6 @@ void run() {
 
 int main(int argc, char **argv) {
 	init(WINDOW_SIZE);
-
-	int i;
-	for (i = 0; i < 24; i++) {
-		float u = i / 24.0;
-		struct xy xy = render_point(u);
-		float d = xy.x * xy.x + xy.y * xy.y;
-		printf("%.2f: %.4f %.4f %.2f\n", u, xy.x, xy.y, d);
-	}
 
 	glTranslatef(WINDOW_SIZE / 2, WINDOW_SIZE / 2, 0);
 
