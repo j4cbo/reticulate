@@ -11,7 +11,7 @@
 
 
 #define PPS		30000
-#define PATTERN_SECONDS 3	
+#define PATTERN_SECONDS 1.5
 #define CIRCLE_HZ	50
 
 #define PATTERN_POINTS (PPS * PATTERN_SECONDS)
@@ -19,6 +19,7 @@
 struct etherdream_point buf[PER_FRAME];
 
 int main() {
+	render_init();
 	etherdream_lib_start();
 
 	/* Sleep for a bit over a second, to ensure that we see broadcasts
@@ -53,8 +54,8 @@ int main() {
 			pt->x = xy.x * 5000;
 			pt->y = xy.y * 5000;
 			pt->r = 65535;
-			pt->g = 65535;
-			pt->b = 65535;
+			pt->g = 0; //65535;
+			pt->b = 0; //65535;
 			p++;
 		}
 

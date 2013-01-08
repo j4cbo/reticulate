@@ -73,6 +73,7 @@ void run() {
 
 int main(int argc, char **argv) {
 	init(WINDOW_SIZE);
+	render_init();
 
 	glTranslatef(WINDOW_SIZE / 2, WINDOW_SIZE / 2, 0);
 
