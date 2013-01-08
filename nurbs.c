@@ -26,7 +26,7 @@ static inline float nurbs_N2(const float *knots, int i, float u) {
 	return out;
 }
 
-static const float nurbs_t_knots[7] = { -1.5, -1.5, -.5, .5, 1.5, 2.5, 2.5 };
+static const float nurbs_t_knots[] = { 0, 0, 0, 0.5, 1, 1, 1 };
 
 struct xy nurbs_evaluate(const struct nurbs_patch *p, float u, float v) {
 	int i, j;
