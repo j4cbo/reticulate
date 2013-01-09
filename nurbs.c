@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+const float nurbs_t_knots[7] = { 0, 0, 0, 0.5, 1, 1, 1 };
+
 struct nurbs_line *nurbs_load_line(const char *filename) {
 	struct nurbs_line *out = NULL;
 	FILE *fp = fopen(filename, "r");
@@ -109,7 +111,7 @@ struct xy nurbs_evaluate(const struct nurbs_patch *p, float u, float v) {
 			if (!r)
 				continue;
 
-			r *= nurbs_N2(p->t_knots, j, v);
+			r *= nurbs_N2(nurbs_t_knots, j, v);
 			if (!r)
 				continue;
 

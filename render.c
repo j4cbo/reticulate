@@ -5,8 +5,6 @@
 
 #include "render.h"
 
-const float move_t_knots[] = { 0, 0, 0, 0.5, 1, 1, 1 };
-
 struct nurbs_patch *make_move(const struct nurbs_line *line,
                               struct xy path[NURBS_T_POINTS]) {
 
@@ -18,7 +16,6 @@ struct nurbs_patch *make_move(const struct nurbs_line *line,
 
 	out->points = line->points;
 	out->xy_knots = line->knots;
-	out->t_knots = move_t_knots;
 
 	for (int i = 0; i < line->points; i++) {
 		for (int j = 0; j < 4; j++) {
@@ -42,7 +39,6 @@ struct nurbs_patch *make_spin(const struct nurbs_line *line,
 
 	out->points = line->points;
 	out->xy_knots = line->knots;
-	out->t_knots = move_t_knots;
 
 	for (int i = 0; i < line->points; i++) {
 		for (int j = 0; j < 4; j++) {
