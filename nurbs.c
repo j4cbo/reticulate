@@ -34,8 +34,34 @@ struct nurbs_line *nurbs_load_line(const char *filename) {
 	out->points = count;
 	out->knots = (float *)(out->t + count);
 
-	if (fread(out->t, sizeof (float), (count * 4) + 3, fp) != (count * 4) + 3) {
+	int nfloats = (count * 4) + 3;
+	if (fread(out->t, sizeof (float), nfloats, fp) != nfloats) {
 		printf("short read\n");
+		goto bail;
+	}
+
+	/* Validate the knot vector */
+	int repeats = 1;
+	for (int i = 1; i < count + 3; i++) {
+		printf("%f\n", out->knots[i]);
+		if (out->knots[i] < out->knots[i - 1]) {
+			printf("invalid knot vector\n");
+			goto bail;
+		}
+
+		if (out->knots[i] == out->knots[i - 1])
+			repeats++;
+		else
+			repeats = 1;
+
+		if (repeats > 3) {
+			printf("invalid knot vector\n");
+			goto bail;
+		}
+	}
+
+	if (out->knots[count + 2] < 1.0) {
+		printf("invalid knot vector\n");
 		goto bail;
 	}
 
