@@ -5,15 +5,6 @@
 
 #include "render.h"
 
-const struct nurbs_point circle_points[] = {
-	{  1,  0,  1 }, {  1,  1,  M_SQRT1_2 },
-	{  0,  1,  1 }, { -1,  1,  M_SQRT1_2 },
-	{ -1,  0,  1 }, { -1, -1,  M_SQRT1_2 },
-	{  0, -1,  1 }, {  1, -1,  M_SQRT1_2 },
-	{  1,  0,  1 },
-};
-
-const float circle_knots[] = { 0, 0, 0, .25, .25, .5, .5, .75, .75, 1, 1, 1 };
 const float nurbs_t_knots[] = { 0, 0, 0, 0.5, 1, 1, 1 };
 
 struct nurbs_patch *make_move(int npts,
@@ -63,8 +54,11 @@ struct xy move_path[][4] = {
 struct nurbs_patch *moving_circles[12];
 
 void render_init(void) {
+	struct nurbs_line *line = nurbs_load_line("data/circle.nub");
+	assert(line);
+
 	for (int i = 0; i < 12; i++)
-		moving_circles[i] = make_move(9, circle_points, circle_knots, move_path[i]);
+		moving_circles[i] = make_move(line->points, line->t, line->knots, move_path[i]);
 }
 
 struct xy render_point(float u, float per_circle) {

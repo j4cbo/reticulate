@@ -1,5 +1,53 @@
 #include "nurbs.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+struct nurbs_line *nurbs_load_line(const char *filename) {
+	struct nurbs_line *out = NULL;
+	FILE *fp = fopen(filename, "r");
+	if (!fp)
+		return NULL;
+
+	char buf[8];
+	if (fread(buf, sizeof buf, 1, fp) != 1) {
+		printf("not a nub3 file\n");
+		goto bail;
+	}
+
+	if (memcmp(buf, "nub\003", 4)) {
+		printf("not a nub3 file\n");
+		goto bail;
+	}
+
+	int count = *(int *)(buf + 4);
+	printf("points: %d\n", count);
+
+	out = malloc(sizeof *out + (count * sizeof (struct nurbs_point)
+	                         + ((count + 3) * sizeof (float))));
+	if (!out) {
+		printf("oom in nurbs_load_line\n");
+		goto bail;
+	}
+
+	out->points = count;
+	out->knots = (float *)(out->t + count);
+
+	if (fread(out->t, sizeof (float), (count * 4) + 3, fp) != (count * 4) + 3) {
+		printf("short read\n");
+		goto bail;
+	}
+
+	fclose(fp);
+	return out;
+
+bail:
+	fclose(fp);
+	free(out);
+	return NULL;
+}
+
 static inline float nurbs_f(const float *knots, int i, int n, float u) {
 	return (u - knots[i]) / (knots[i + n] - knots[i]);
 }
