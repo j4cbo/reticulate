@@ -73,27 +73,31 @@ struct xy move_path[][4] = {
 	{ { -2.0,  1.0 }, { -2.0,  1.5 }, { -2.0,  2.0 }, { -2.0,  2.0 } },
 };
 
-#define PATCHES 16
+#define PATCHES 24
 
 struct nurbs_patch *moving_circles[PATCHES];
 
 #define TAU (2 * M_PI)
 
-#define INCR (TAU / (float)PATCHES)
+#define INCR (TAU / (float)PATCHES / 2)
 
 void render_init(void) {
 	struct nurbs_line *line = nurbs_load_line("data/square.nub");
 	assert(line);
 
 	for (int i = 0; i < PATCHES; i++) {
-		float theta = INCR * (int)i;
-		float angles[] = {
-			theta,
-			fmod(theta + (1*INCR/4.0), TAU),
-			fmod(theta + (3*INCR/4.0), TAU),
-			fmod(theta + INCR, TAU),
-		};
-		moving_circles[i] = make_spin(line, angles);
+		if (i < 12) {
+			moving_circles[i] = make_move(line, move_path[i]);
+		} else {
+			float theta = INCR * (int)i - 12;
+			float angles[] = {
+				theta,
+				fmod(theta + (1*INCR/4.0), TAU),
+				fmod(theta + (3*INCR/4.0), TAU),
+				fmod(theta + INCR, TAU),
+			};
+			moving_circles[i] = make_spin(line, angles);
+		}
 	}
 }
 

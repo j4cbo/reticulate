@@ -69,67 +69,49 @@ struct {
 
 pthread_mutex_t s_lock;
 
+/* render()
+ *
+ * Render all buffered points to the screen.
+ */
 static void render(void) {
-	glClear(GL_COLOR_BUFFER_BIT);
+	/* Start with the oldest frame, up through newest */
+	int next = (s.store_frame + 1) % POV_FRAMES;
 
-	glEnableClientState(GL_COLOR_ARRAY);
-	glEnableClientState(GL_VERTEX_ARRAY);
+	/* Draw all active points */
+	for (int i = 0; i < POV_FRAMES; i++) {
+		struct frame *f = &s.frames[(next + i) % POV_FRAMES];
 
-	HOLDING(&s_lock) {
-		/* Start with the oldest frame, up through newest */
-		int next = (s.store_frame + 1) % POV_FRAMES;
-
-		/* Draw all active points */
-		for (int i = 0; i < POV_FRAMES; i++) {
-			struct frame *f = &s.frames[(next + i) % POV_FRAMES];
-
-			glColorPointer(3, GL_UNSIGNED_SHORT,
-			               sizeof (struct dac_point), &f->data->r);
-			glVertexPointer(2, GL_SHORT,
-			               sizeof (struct dac_point), &f->data->x);
-
-			glDrawArrays(GL_LINE_STRIP, 0, f->size); 
-		}
-
-		/* Advance the frame buffer */
-		s.frames[next].size = 0;
-		s.frames[next].last_copy = s.frames[s.store_frame].last_copy;
-		s.store_frame = next;
+		const int stride = sizeof (struct dac_point);
+		glColorPointer(3, GL_UNSIGNED_SHORT, stride, &f->data->r);
+		glVertexPointer(2, GL_SHORT, stride, &f->data->x);
+		glDrawArrays(GL_LINE_STRIP, 0, f->size); 
 	}
 
-	SDL_GL_SwapBuffers();
+	/* Advance the frame buffer */
+	s.frames[next].size = 0;
+	s.frames[next].last_copy = s.frames[s.store_frame].last_copy;
+	s.store_frame = next;
 }
 
-/* fill_status
+/* fill_status(status)
  *
  * Fill in a struct dac_status with the current state of things.
  */
 void fill_status(struct dac_status *status) {
-	status->protocol = 0;
-	status->light_engine_state = 0;
+	memset(status, 0, sizeof *status);
 	status->playback_state = s.dac_state;
-
-	int fullness = s.point_buf_produce - s.point_buf_consume;
-	if (fullness < 0)
-		fullness += DAC_BUFFER_POINTS;
-	status->buffer_fullness = fullness;
-	status->playback_flags = 0;
-	status->light_engine_flags = 0;
-
-	/* Only report a point rate if currently playing */
-	if (status->playback_state == DAC_RUNNING)
-		status->point_rate = 30000;
-	else
-		status->point_rate = 0;
-
+	status->buffer_fullness = (s.point_buf_produce - s.point_buf_consume
+	                          + DAC_BUFFER_POINTS) % DAC_BUFFER_POINTS;
+	status->point_rate = (s.dac_state == DAC_RUNNING) ? 30000 : 0;
 	status->point_count = s.point_count;
-	status->source = 0;
-	status->source_flags = 0;
 }
 
+/* broadcast_thread_func(arg)
+ *
+ * Send out periodic broadcasts announcing our presence.
+ */
 void *broadcast_thread_func(void *arg) {
 	int udpfd = *(int *)arg;
-
 	const struct sockaddr_in dest_addr = {
 		.sin_family = AF_INET,
 		.sin_addr.s_addr = htonl(INADDR_ANY),
@@ -156,6 +138,10 @@ void *broadcast_thread_func(void *arg) {
 	}
 }
 
+/* check_write(fd, vbuf, len)
+ *
+ * Write all of vbuf to a socket and assert that the write succeeds.
+ */
 static void check_write(int fd, const void *vbuf, size_t len) {
 	const char *buf = vbuf;
 	while (len) {
@@ -166,6 +152,10 @@ static void check_write(int fd, const void *vbuf, size_t len) {
 	}
 }
 
+/* read_exactly(fd, vbuf, len)
+ *
+ * Read exactly len bytes into buf.
+ */
 static int read_exactly(int fd, void *vbuf, size_t len) {
 	char *buf = vbuf;
 	while (len) {
@@ -184,19 +174,65 @@ static int read_exactly(int fd, void *vbuf, size_t len) {
 	return 0;
 }
 
+/* send_resp
+ *
+ * Send a response (ACK or NAK, and status) back to the client.
+ */
 static void send_resp(int fd, char resp, char cmd) {
-	struct dac_response response;
-	response.response = resp;
-	response.command = cmd;
+	struct dac_response response = { resp, cmd };
 	fill_status(&response.dac_status);
-
 	check_write(fd, &response, sizeof response);
+}
+
+static void copy_points_into_frame(void) {
+	if (s.dac_state != DAC_RUNNING)
+		return;
+
+	struct frame *f = s.frames + s.store_frame;
+	long long now = microseconds();
+
+	int fullness = s.point_buf_produce - s.point_buf_consume;
+	if (fullness < 0)
+		fullness += DAC_BUFFER_POINTS;
+
+	int n = MIN((now - f->last_copy) * POINT_RATE / 1000000,
+	            MIN(fullness, MAX_DATA_PER_FRAME - f->size));
+
+	int first = MIN(n, DAC_BUFFER_POINTS - s.point_buf_consume);
+	
+	memcpy(f->data + f->size, s.point_buf + s.point_buf_consume,
+	       first * sizeof (struct dac_point));
+	memcpy(f->data + f->size + first, s.point_buf,
+	       (n - first) * sizeof (struct dac_point));
+
+	s.point_count += n;
+	s.point_buf_consume = (s.point_buf_consume + n) % DAC_BUFFER_POINTS;
+	f->last_copy = now;
+	f->size += n;
+
+	if (f->size == MAX_DATA_PER_FRAME) {
+		/* Advance the frame buffer */
+		int next = (s.store_frame + 1) % POV_FRAMES;
+		s.frames[next].size = 0;
+		s.frames[next].last_copy = s.frames[s.store_frame].last_copy;
+		s.store_frame = next;
+	}
 }
 
 static const char version_string[32] = "simulator";
 
-static int process_command(int fd, char cmd) {
+/* read_and_process_command(fd)
+ *
+ * Read a command from the network and process it.
+ */
+static int process_command(int fd) {
 	char buf[6];
+	char cmd;
+	if (read_exactly(fd, &cmd, sizeof cmd) < 0)
+		return -1;
+
+	HOLDING(&s_lock)
+		copy_points_into_frame();
 
 	switch (cmd) {
 	case 'v':
@@ -281,41 +317,6 @@ static int process_command(int fd, char cmd) {
 	return 1;
 }
 
-static void copy_points_into_frame(void) {
-	if (s.dac_state != DAC_RUNNING)
-		return;
-
-	struct frame *f = s.frames + s.store_frame;
-	long long now = microseconds();
-
-	int fullness = s.point_buf_produce - s.point_buf_consume;
-	if (fullness < 0)
-		fullness += DAC_BUFFER_POINTS;
-
-	int n = MIN((now - f->last_copy) * POINT_RATE / 1000000,
-	            MIN(fullness, MAX_DATA_PER_FRAME - f->size));
-
-	int first = MIN(n, DAC_BUFFER_POINTS - s.point_buf_consume);
-	
-	memcpy(f->data + f->size, s.point_buf + s.point_buf_consume,
-	       first * sizeof (struct dac_point));
-	memcpy(f->data + f->size + first, s.point_buf,
-	       (n - first) * sizeof (struct dac_point));
-
-	s.point_count += n;
-	s.point_buf_consume = (s.point_buf_consume + n) % DAC_BUFFER_POINTS;
-	f->last_copy = now;
-	f->size += n;
-
-	if (f->size == MAX_DATA_PER_FRAME) {
-		/* Advance the frame buffer */
-		int next = (s.store_frame + 1) % POV_FRAMES;
-		s.frames[next].size = 0;
-		s.frames[next].last_copy = s.frames[s.store_frame].last_copy;
-		s.store_frame = next;
-	}
-}
-
 static void *net_thread_func(void *arg) {
 	int srvfd = *(int *)arg;
 
@@ -329,22 +330,13 @@ static void *net_thread_func(void *arg) {
 
 		/* Wait for a connection */
 		int fd = accept(srvfd, (struct sockaddr *)&client, &len);
+		CHK("accept", fd);
 		printf("Connection from %s\n", inet_ntoa(client.sin_addr));
 
 		/* Send initial status response */
 		send_resp(fd, RESP_ACK, '?');
 
-		while (1) {
-			char c;
-			if (read_exactly(fd, &c, sizeof c) < 0)
-				break;
-
-			HOLDING(&s_lock)
-				copy_points_into_frame();
-
-			if (process_command(fd, c) != 1)
-				break;
-		}
+		while (process_command(fd) == 1);
 
 		printf("Connection closed\n");
 		close(fd);
@@ -386,6 +378,9 @@ SDL_Surface *video_init(int window_size) {
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 
+	glEnableClientState(GL_COLOR_ARRAY);
+	glEnableClientState(GL_VERTEX_ARRAY);
+
 	return scr;
 }
 
@@ -408,20 +403,40 @@ int main(int argc, char **argv) {
 
 	video_init(WINDOW_SIZE);
 
+	long long t = microseconds();
+	int frames = 0;
+
 	long long next_frame = microseconds();
 
 	while (!SDL_QuitRequested()) {
+
 		/* Run the SDL event loop */
 		SDL_Event event;
 		while (SDL_PollEvent(&event));
 
-		render();
+		/* Clear the screen and render the next frame */
+		glClear(GL_COLOR_BUFFER_BIT);
+		HOLDING(&s_lock)
+			render();
 
+		long long now = microseconds();
+		frames++;
+		if (t + 1000000 < now) {
+			char buf[20];
+			sprintf(buf, "%d FPS", frames);
+			SDL_WM_SetCaption(buf, 0);
+			printf("%s\n", buf);
+			t += 1000000;
+			frames = 0;
+		}
+
+		SDL_GL_SwapBuffers();
+
+		/* Delay if needed */
 		next_frame += 1000000 / FPS;
 		long long delay_time = (next_frame - microseconds()) / 1000;
-		if (delay_time > 0) {
+		if (delay_time > 0)
 			SDL_Delay(delay_time);
-		}
 	}
 
 	return 0;

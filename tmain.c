@@ -11,7 +11,7 @@
 
 
 #define PPS		30000
-#define PATTERN_SECONDS 20
+#define PATTERN_SECONDS 5
 #define CIRCLE_HZ	50
 
 #define PATTERN_POINTS (PPS * PATTERN_SECONDS)
@@ -51,8 +51,10 @@ int main() {
 			struct etherdream_point *pt = &buf[i];
 			float u = p / ((float)PATTERN_POINTS);
 			struct xy xy = render_point(u, PATTERN_SECONDS * CIRCLE_HZ);
-			pt->x = xy.x * 8000;
-			pt->y = xy.y * 8000;
+			xy.x *= 10000;
+			xy.y *= 10000;
+			pt->x = xy.x > 32767 ? 32767 : (xy.x < -32768 ? -32768 : xy.x);
+			pt->y = xy.y > 32767 ? 32767 : (xy.y < -32768 ? -32768 : xy.y);
 			pt->r = 65535;
 			pt->g = 65535;
 			pt->b = 65535;
