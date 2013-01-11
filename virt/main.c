@@ -31,7 +31,6 @@
 #include "timestuff.h"
 
 #define WINDOW_SIZE		500
-#define OVERSCAN		1.1
 
 #define POINT_RATE		30000
 #define PERSIST_MS		100
@@ -383,8 +382,7 @@ SDL_Surface *video_init(int window_size) {
 	glClear(GL_COLOR_BUFFER_BIT);
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
-	glOrtho(-32767 * OVERSCAN, 32768 * OVERSCAN,
-	        -32767 * OVERSCAN, 32768 * OVERSCAN, -1.0f, 1.0f);
+	glOrtho(-32769, 32768, -32769, 32768, -1.0f, 1.0f);
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 
