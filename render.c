@@ -73,31 +73,35 @@ struct xy move_path[][4] = {
 	{ { -2.0,  1.0 }, { -2.0,  1.5 }, { -2.0,  2.0 }, { -2.0,  2.0 } },
 };
 
-#define PATCHES 24
+#define MOVE_PATCHES	12
+#define SPIN_PATCHES	12
 
-struct nurbs_patch *moving_circles[PATCHES];
+#define PATCHES (MOVE_PATCHES + SPIN_PATCHES)
 
 #define TAU (2 * M_PI)
+#define INCR (TAU / SPIN_PATCHES)
 
-#define INCR (TAU / (float)PATCHES / 2)
+static struct nurbs_patch *patches[PATCHES];
 
 void render_init(void) {
-	struct nurbs_line *line = nurbs_load_line("data/square.nub");
-	assert(line);
+	struct nurbs_line *circle_line = nurbs_load_line("data/circle.nub"),
+	                  *square_line = nurbs_load_line("data/square.nub");
+	assert(circle_line);
+	assert(square_line);
 
-	for (int i = 0; i < PATCHES; i++) {
-		if (i < 12) {
-			moving_circles[i] = make_move(line, move_path[i]);
-		} else {
-			float theta = INCR * (int)i - 12;
-			float angles[] = {
-				theta,
-				fmod(theta + (1*INCR/4.0), TAU),
-				fmod(theta + (3*INCR/4.0), TAU),
-				fmod(theta + INCR, TAU),
-			};
-			moving_circles[i] = make_spin(line, angles);
-		}
+	for (int i = 0; i < MOVE_PATCHES; i++)
+		patches[i] = make_move(circle_line, move_path[i]);
+
+	for (int i = 0; i < SPIN_PATCHES; i++) {
+		float theta = INCR * i;
+		float angles[] = {
+			theta,
+			fmod(theta + INCR*1/4, TAU),
+			fmod(theta + INCR*3/4, TAU),
+			fmod(theta + INCR, TAU),
+		};
+
+		patches[MOVE_PATCHES + i] = make_spin(square_line, angles);
 	}
 }
 
@@ -107,13 +111,14 @@ static int16_t clamp(float v) {
 
 void render_point(struct etherdream_point *pt, float u, float redraw_count) {
 	/* Figure out which patch we're in */
-	float ipart;
-	u *= (float)PATCHES;
-	float fpart = modff(u, &ipart);
-	int i = ipart;
+	float ipart, fpart = modff(u * PATCHES, &ipart);
+	int patch = ipart;
 
-	struct xy xy = nurbs_evaluate(moving_circles[i], fmod(u * redraw_count / (float)PATCHES, 1.0), fpart);
+	/* Evaluate the NURBS surface */
+	struct xy xy = nurbs_evaluate(patches[patch],
+	                              fmod(u * redraw_count, 1.0), fpart);
 
+	/* Convert to DAC format */
 	pt->x = clamp(xy.x * 10000);
 	pt->y = clamp(xy.y * 10000);
 	pt->r = 65535;
