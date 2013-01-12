@@ -30,7 +30,7 @@
 
 #include "timestuff.h"
 
-#define WINDOW_SIZE		500
+#define WINDOW_SIZE		600
 
 #define POINT_RATE		30000
 #define PERSIST_MS		100

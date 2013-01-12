@@ -101,11 +101,22 @@ void render_init(void) {
 	}
 }
 
-struct xy render_point(float u, float per_circle) {
-	double ipart;
-	u = modf(u, &ipart);
+static int16_t clamp(float v) {
+	return v >= 32767 ? 32767 : (v <= -32768 ? -32768 : v);
+}
+
+void render_point(struct etherdream_point *pt, float u, float redraw_count) {
+	/* Figure out which patch we're in */
+	float ipart;
 	u *= (float)PATCHES;
-	float fpart = modf(u, &ipart);
+	float fpart = modff(u, &ipart);
 	int i = ipart;
-	return nurbs_evaluate(moving_circles[i], fmod(u * per_circle / (float)PATCHES, 1.0), fpart);
+
+	struct xy xy = nurbs_evaluate(moving_circles[i], fmod(u * redraw_count / (float)PATCHES, 1.0), fpart);
+
+	pt->x = clamp(xy.x * 10000);
+	pt->y = clamp(xy.y * 10000);
+	pt->r = 65535;
+	pt->g = 65535;
+	pt->b = 65535;
 }

@@ -7,36 +7,29 @@
 #include "etherdream.h"
 #include "render.h"
 
-#define PER_FRAME 600
-
-
-#define PPS		30000
+#define PPS             30000
 #define PATTERN_SECONDS 5
-#define CIRCLE_HZ	50
+#define REFRESH_HZ	50
 
-#define PATTERN_POINTS (PPS * PATTERN_SECONDS)
-
-struct etherdream_point buf[PER_FRAME];
+#define PATTERN_POINTS  (PPS * PATTERN_SECONDS)
+#define PER_FRAME       1000
 
 int main() {
 	render_init();
 	etherdream_lib_start();
 
-	/* Sleep for a bit over a second, to ensure that we see broadcasts
-	 * from all available DACs. */
+	/* Sleep for a bit over a second, to ensure that we see all DACs */
 	usleep(1200000);
 
-	int cc = etherdream_dac_count();
-	if (!cc) {
+	int dac_count = etherdream_dac_count();
+	if (!dac_count) {
 		printf("No DACs found.\n");
 		return 0;
 	}
 
-	int i;
-	for (i = 0; i < cc; i++) {
-		printf("%d: Ether Dream %06lx\n", i,
-			etherdream_get_id(etherdream_get(i)));
-	}
+	for (int i = 0; i < dac_count; i++)
+		printf("DAC %d: Ether Dream %06lx\n", i,
+		       etherdream_get_id(etherdream_get(i)));
 
 	struct etherdream *d = etherdream_get(0);
 
@@ -44,31 +37,26 @@ int main() {
 	if (etherdream_connect(d) < 0)
 		return 1;
 
-	i = 0;
 	int p = 0;
 	while (1) {
-		for (i = 0; i < PER_FRAME; i++) {
-			struct etherdream_point *pt = &buf[i];
-			float u = p / ((float)PATTERN_POINTS);
-			struct xy xy = render_point(u, PATTERN_SECONDS * CIRCLE_HZ);
-			xy.x *= 10000;
-			xy.y *= 10000;
-			pt->x = xy.x > 32767 ? 32767 : (xy.x < -32768 ? -32768 : xy.x);
-			pt->y = xy.y > 32767 ? 32767 : (xy.y < -32768 ? -32768 : xy.y);
-			pt->r = 65535;
-			pt->g = 65535;
-			pt->b = 65535;
-			p++;
+		struct etherdream_point buf[PER_FRAME];
+
+		for (int i = 0; i < PER_FRAME; i++) {
+			render_point(
+				&buf[i],
+				(float)p / PATTERN_POINTS,
+				PATTERN_SECONDS * REFRESH_HZ
+			);
+
+			p = (p + 1) % PATTERN_POINTS;
 		}
 
 		int res = etherdream_write(d, buf, PER_FRAME, PPS, 1);
-		if (res != 0) {
+		if (res != 0)
 			printf("write %d\n", res);
-		}
+
 		etherdream_wait_for_ready(d);
-		i++;
 	}
 
-	printf("done\n");
 	return 0;
 }
